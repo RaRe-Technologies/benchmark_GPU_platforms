@@ -1,0 +1,98 @@
+---
+# Run this playbook using : `ansible-playbook -i hosts benchmark.yml -v` from inside the ansible directory in repo
+- name: Fetch and install packages/tools to run Docker 
+  hosts: all
+  gather_facts: False
+  
+  pre_tasks:
+  # Install python - required to run Ansible commands on host machine
+  - name: Install python 2
+    raw: test -e /usr/bin/python || (sudo apt -y update && sudo apt install -y python-minimal)
+
+  - name: Install pip
+    become: true
+    apt: 
+        name: python-pip
+        update_cache: yes 
+        cache_valid_time: 600
+
+  # install pycurl - required for installing docker on host machine
+  - name: install pycurl
+    become: true
+    apt: 
+        name: python-pycurl 
+        update_cache: yes 
+        cache_valid_time: 600
+
+  # install docker
+  - name: Update the apt package index
+    become: true
+    apt:
+        update_cache: yes
+
+  - name:  Install packages to allow apt to use a repository over HTTPS
+    become: true
+    apt: 
+        name: "{{item}}"
+    with_items:
+          - apt-transport-https=1.2.24
+          - apt-transport-https=1.2.24
+          - curl=7.47.0-1ubuntu2.3
+          - software-properties-common=0.96.20.7
+
+  - name: Add Docker’s official GPG key
+    become: true
+    raw: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+
+  - name: Retrieve the ubuntu distribution
+    command: lsb_release -cs
+    register: lsbrelease
+
+  - name: Retrieve machine architecture
+    command: dpkg --print-architecture
+    register: arch
+
+  - name: Set up the stable repository for docker
+    become: true
+    apt_repository:
+      repo: deb [arch={{arch.stdout}}] https://download.docker.com/linux/ubuntu {{lsbrelease.stdout}} stable
+
+  - name: Install Docker
+    become: true
+    apt: 
+        name: docker-ce
+        update_cache: yes 
+        cache_valid_time: 600
+
+  - name: Install docker-py
+    become: true
+    pip:
+        name: docker-py
+
+  - name:  Install packages - htop, tmux, less, vim
+    become: true
+    apt: 
+        name: "{{item}}"
+    with_items:
+          - htop
+          - tmux
+          - less
+          - vim
+  
+  tasks:
+  # Clone github repo, pull image from docker, create wiki corpus, run benchmark in docker and finally mail the report
+#  - name: Clone benchamrk repo
+#    git:
+#      repo: https://github.com/manneshiva/benchmark-word2vec-frameworks.git
+#      dest: /home/ubuntu/benchmark-word2vec-frameworks/
+#      clone: yes
+#      recursive: yes
+
+  - name: Pull docker image from Docker Hub
+    become: true
+    docker_image:
+      name: manneshiva/playground:benchmarkword2vec-gpu
+
+  - name: Make persistent directory - for docker
+    become: true
+    file: path=/persistent/ state=directory
