@@ -6,8 +6,8 @@ MAINTAINER Shiva Manne <manneshiva@gmail.com>
 # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/tools/docker/Dockerfile.devel-gpu
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential=12.1ubuntu2 \
-        curl=7.47.0-1ubuntu2.2 \
-        git=1:2.7.4-0ubuntu1.2 \
+        curl=7.47.0-1ubuntu2.5 \
+        git=1:2.7.4-0ubuntu1.3 \
         libcurl3-dev \
         libfreetype6-dev=2.6.1-0.1ubuntu2.3 \
         libpng12-dev=1.2.54-1ubuntu1 \
@@ -19,8 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         unzip=6.0-20ubuntu1 \
         zip=3.0-11 \
         zlib1g-dev=1:1.2.8.dfsg-2ubuntu4.1 \
-        openjdk-8-jdk=8u131-b11-2ubuntu1.16.04.3 \
-        openjdk-8-jre-headless=8u131-b11-2ubuntu1.16.04.3 \
+        openjdk-8-jdk=8u151-b12-0ubuntu0.16.04.2 \
+        openjdk-8-jre-headless=8u151-b12-0ubuntu0.16.04.2 \
+        vim=2:7.4.1689-3ubuntu1.2 \
         && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -49,7 +50,7 @@ RUN echo "startup --batch" >>/etc/bazel.bazelrc
 RUN echo "build --spawn_strategy=standalone --genrule_strategy=standalone" \
     >>/etc/bazel.bazelrc
 # Install the most recent bazel release.
-ENV BAZEL_VERSION 0.5.0
+ENV BAZEL_VERSION 0.5.4
 WORKDIR /
 RUN mkdir /bazel && \
     cd /bazel && \
@@ -64,7 +65,7 @@ RUN mkdir /bazel && \
 
 RUN git clone https://github.com/tensorflow/tensorflow.git && \
     cd tensorflow && \
-    git checkout r1.3
+    git checkout r1.4
 WORKDIR /tensorflow
 
 # Configure the build for our CUDA configuration.
@@ -72,12 +73,17 @@ ENV CI_BUILD_PYTHON python
 ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
 ENV TF_NEED_CUDA 1
 ENV TF_CUDA_COMPUTE_CAPABILITIES=3.0,3.5,5.2,6.0,6.1
+ENV TF_CUDA_VERSION=8.0
+ENV TF_CUDNN_VERSION=6
 
-RUN tensorflow/tools/ci_build/builds/configured GPU \
+RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1
+RUN LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH} \
+    tensorflow/tools/ci_build/builds/configured GPU \
     bazel build -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
         --copt=-mavx --copt=-mavx2 --copt=-mfma --copt=-mfpmath=both --copt=-msse4.1 --copt=-msse4.2 \
-        tensorflow/tools/pip_package:build_pip_package && \
-    bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip && \
+        tensorflow/tools/pip_package:build_pip_package
+RUN rm /usr/local/cuda/lib64/stubs/libcuda.so.1
+RUN bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip && \
     pip --no-cache-dir install --upgrade /tmp/pip/tensorflow-*.whl && \
     rm -rf /tmp/pip && \
     rm -rf /root/.cache
@@ -92,44 +98,21 @@ EXPOSE 8888
 
 WORKDIR /
 
-#setting up Java & Maven for dl4j
-RUN add-apt-repository -y ppa:webupd8team/java && \ 
-    apt-get update && \ 
-    echo debconf shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \ 
-    echo debconf shared/accepted-oracle-license-v1-1 seen true | debconf-set-selections && \ 
-    apt-get install -y oracle-java8-installer=8u144-1~webupd8~0 && \ 
-    apt-get install -y libopenjfx-java=8u60-b27-4 && \ 
-    rm -rf /var/lib/apt/lists/*
-ENV JAVA_HOME /usr/lib/jvm/java-8-oracle
-ENV JAVAFX_HOME /usr/share/java/openjfx/jre/lib/ext/
-
-RUN wget http://redrockdigimark.com/apachemirror/maven/maven-3/3.5.0/binaries/apache-maven-3.5.0-bin.tar.gz -P /maven/ && \ 
-    tar -zxf /maven/apache-maven-3.5.0-bin.tar.gz -C /maven && \ 
-    rm -rf /maven/apache-maven-3.5.0-bin.tar.gz 
-ENV PATH /maven/apache-maven-3.5.0/bin:$PATH
-
 # Install python packages
 RUN pip --no-cache-dir install \
         gensim==2.1.0 \
         memory_profiler==0.47 \
         psutil==5.2.2 \
         snowballstemmer==1.2.1 \
-        PyStemmer==1.3.0
+        PyStemmer==1.3.0 \
+        keras==2.1.3 \
+        tqdm==4.19.5 \
+        gputil==1.2.3
 
 # set python hash seed
 ENV PYTHONHASHSEED 12345
 
-RUN pip --no-cache-dir install \
-        keras==2.1.3 \
-        tqdm==4.19.5 \
-        gputil==1.2.3
-RUN apt-get update && apt-get install -y vim
-
 COPY ./benchmark-GPU-platforms /benchmark-GPU-platforms
 
 WORKDIR /
-RUN useradd -m -u 1005 shiva
-RUN chown -R shiva:shiva /benchmark-GPU-platforms
-USER shiva
 CMD ["/bin/bash"]
-
