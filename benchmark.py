@@ -84,6 +84,18 @@ def parse_args():
     parser.add_argument(
         '--platform', help='Platform the benchmark is being run on. eg. aws, paperspace', required=True
     )
+    parser.add_argument(
+        '--epochs', required=True, type=int,
+        help='Number of iterations (epochs) over the corpus.'
+    )
+    parser.add_argument(
+        '--interval', required=True, type=int,
+        help='Log GPU usage every interval number of seconds.'
+    )
+    parser.add_argument(
+        '--data_ratio', required=True, type=float,
+        help='Proportion of data (of ~1.5 million tweets) to be used for the benchmark.'
+    )
     return parser.parse_args()
 
 
@@ -157,13 +169,13 @@ if __name__ == '__main__':
     report_dict['gpuinfo'] = get_gpu_info()
 
     logger.info('Loading data...')
-    x_train, y_train, x_test, y_test, vocabulary, vocabulary_inv = load_data(0.01)
+    x_train, y_train, x_test, y_test, vocabulary, vocabulary_inv = load_data(options.data_ratio)
     logger_callback = EpochStatsLogger()
 
     max_features = len(vocabulary)
     maxlen = x_train.shape[1]
     batch_size = 32
-    epochs = 2
+    epochs = options.epochs
 
     logger.info('%d train sequences' % len(x_train))
     logger.info('%d test sequences' % len(x_test))
@@ -176,7 +188,7 @@ if __name__ == '__main__':
     model = get_model()
 
     # Process to monitor GPU usage
-    p = multiprocessing.Process(target=monitor_gpu, args=(1, GPU_USAGE_FILE))
+    p = multiprocessing.Process(target=monitor_gpu, args=(options.interval, GPU_USAGE_FILE))
     p.start()
 
     train_start_time = time.time()
