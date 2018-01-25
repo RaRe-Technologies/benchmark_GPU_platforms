@@ -36,9 +36,9 @@ tf.set_random_seed(123)
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
+RESULTS_DIR = 'results/'
 EPOCH_STATS_LOGFILE = 'epoch_stats.log'
-GPU_USAGE_FILE = 'gpu_stats.log'
+GPU_USAGE_FILE = RESULTS_DIR + 'gpu_stats.log'
 
 class EpochStatsLogger(Callback):
 
@@ -72,7 +72,7 @@ def get_model():
     model.add(Dense(1, activation='sigmoid'))
 
     if K.backend() == 'tensorflow' and len(K.tensorflow_backend._get_available_gpus()) > 1:
-        print("Using Multi-GPU Model")
+        logger.info("Using Multi-GPU Model")
         model = multi_gpu_model(model, gpus=len(K.tensorflow_backend._get_available_gpus()))
 
     model.compile('adam', 'binary_crossentropy', metrics=['accuracy'])
@@ -149,7 +149,6 @@ if __name__ == '__main__':
     # check if GPU is correctly configured
     check_gpu()
 
-    RESULTS_DIR = 'results/'
     REPORT_FILE = '{}{}-report.json'.format(RESULTS_DIR, options.platform)
 
     report_dict = dict()
